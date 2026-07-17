@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FinStud — Import</title>
+<link rel="stylesheet" href="../css/app.css"/>
+<script src="../js/store.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+.verify-banner{display:flex;align-items:center;gap:.75rem;padding:.65rem 1.1rem;background:#FFFBEB;border-bottom:1px solid #FDE68A;font-size:.82rem;color:#92400E;flex-shrink:0;}
+.verify-banner svg{width:15px;height:15px;stroke:#D97706;stroke-width:1.8;fill:none;flex-shrink:0;}
+.verify-link{color:#D97706;font-weight:600;cursor:pointer;margin-left:.25rem;text-decoration:underline;}
+.verify-close{margin-left:auto;background:none;border:none;cursor:pointer;color:#92400E;font-size:1.1rem;line-height:1;}
+
+/* Import tabs (Assets / Income & Expenses) */
+.import-tabs{display:flex;gap:.5rem;margin-bottom:1.25rem;flex-wrap:wrap;}
+.itab{
+  padding:.55rem 1.2rem;border-radius:8px;border:1.5px solid var(--border);
+  font-size:.875rem;font-weight:500;color:var(--text-muted);
+  background:var(--white);cursor:pointer;transition:border-color .2s,color .2s,background .2s;
+}
+.itab:hover{border-color:var(--text-muted);color:var(--text);}
+.itab.active{border-color:var(--text);background:var(--white);color:var(--text);font-weight:600;}
+
+/* Mode toggle row */
+.mode-row{display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;}
+.mode-btn{
+  padding:.5rem 1.1rem;border-radius:8px;border:1.5px solid var(--border);
+  font-size:.82rem;font-weight:500;color:var(--text-muted);
+  background:var(--white);cursor:pointer;transition:.2s;
+}
+.mode-btn:hover{border-color:var(--text-muted);color:var(--text);}
+.mode-btn.active{border-color:var(--text);background:var(--white);color:var(--text);font-weight:600;}
+
+/* Append mode info banner */
+.mode-info{
+  background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;
+  padding:.7rem 1rem;font-size:.82rem;color:#1E40AF;margin-bottom:1.25rem;
+}
+.mode-info strong{font-weight:700;}
+
+/* Preview table */
+.preview-wrap{margin-top:.9rem;display:none;}
+.preview-wrap.show{display:block;}
+.preview-title{font-size:.88rem;font-weight:600;margin-bottom:.5rem;color:var(--text);}
+.preview-table{width:100%;border-collapse:collapse;font-size:.8rem;margin-bottom:.5rem;}
+.preview-table th{background:var(--cream);padding:.55rem .7rem;text-align:left;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);border-bottom:1px solid var(--border);}
+.preview-table td{padding:.5rem .7rem;border-bottom:1px solid var(--border);color:var(--text);}
+.preview-table tr.invalid-row{background:#FEF2F2;}
+.preview-table tr.invalid-row td{color:var(--red);}
+.preview-stats{font-size:.78rem;color:var(--text-muted);margin-top:.4rem;}
+.preview-stats strong{color:var(--green-dark);}
+
+/* Error banner */
+.error-banner{display:none;background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:.7rem 1rem;font-size:.82rem;color:#991B1B;margin-top:.75rem;}
+.error-banner.show{display:block;}
+.error-banner strong{font-weight:700;}
+
+/* Spinner */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;margin-right:.4rem;vertical-align:middle;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* Section card */
+.import-card{
+  background:var(--white);border:1px solid var(--border);
+  border-radius:12px;padding:1.4rem 1.5rem;margin-bottom:1rem;
+}
+.import-card h3{font-size:.95rem;font-weight:700;margin-bottom:.25rem;}
+.import-card .card-sub{font-size:.8rem;color:var(--text-muted);margin-bottom:1.1rem;line-height:1.6;}
+
+/* Broker selector */
+.broker-row{display:flex;gap:.65rem;flex-wrap:wrap;margin-bottom:0;}
+.broker-btn{
+  display:flex;align-items:center;gap:.55rem;
+  border:1.5px solid var(--border);border-radius:9px;
+  padding:.55rem 1.05rem;font-size:.875rem;font-weight:500;
+  color:var(--text);background:var(--white);cursor:pointer;
+  transition:border-color .2s,background .2s,color .2s;
+}
+.broker-btn:hover{border-color:var(--green);color:var(--green);}
+.broker-btn.selected{border-color:var(--green);background:var(--green-bg);color:var(--green-dark);font-weight:600;}
+.broker-logo{width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:800;color:var(--white);flex-shrink:0;}
+.broker-logo.zerodha{background:#387ED1;}
+.broker-logo.groww{background:#00D09C;}
+
+/* Instructions box */
+.instructions{
+  background:var(--cream);border:1px solid var(--border);
+  border-radius:10px;padding:1.1rem 1.25rem;margin-top:.9rem;
+  font-size:.82rem;color:var(--text);line-height:1.85;
+}
+.instructions h4{font-size:.875rem;font-weight:700;margin-bottom:.6rem;color:var(--text);}
+.instructions .opt-title{font-weight:700;color:var(--text);margin-bottom:.3rem;margin-top:.75rem;}
+.instructions ol{padding-left:1.2rem;}
+.instructions ol li{margin-bottom:.25rem;}
+.instructions a{color:var(--green);text-decoration:underline;}
+.instructions .note{
+  font-family:'DM Mono',monospace;font-size:.72rem;color:var(--text-muted);
+  margin-top:.85rem;border-top:1px solid var(--border);padding-top:.75rem;
+}
+
+/* Upload dropzone */
+.dropzone{
+  border:2px dashed #C8C4BB;border-radius:10px;
+  padding:2.5rem 1.5rem;text-align:center;cursor:pointer;
+  transition:border-color .2s,background .2s;background:var(--white);
+  margin-top:.85rem;
+}
+.dropzone:hover,.dropzone.dragover{border-color:var(--green);background:var(--green-bg);}
+.dropzone svg{width:32px;height:32px;stroke:var(--text-muted);stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round;margin-bottom:.65rem;}
+.dropzone:hover svg,.dropzone.dragover svg{stroke:var(--green);}
+.dropzone h4{font-size:.9rem;font-weight:600;color:var(--text);margin-bottom:.3rem;}
+.dropzone p{font-size:.78rem;color:var(--text-muted);}
+.dropzone input[type=file]{display:none;}
+
+/* File selected state */
+.file-selected{
+  display:none;align-items:center;gap:.85rem;
+  border:1.5px solid var(--green);border-radius:10px;
+  padding:1rem 1.25rem;background:var(--green-bg);margin-top:.85rem;
+}
+.file-selected.show{display:flex;}
+.file-icon{width:36px;height:36px;border-radius:8px;background:var(--white);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.file-icon svg{width:18px;height:18px;stroke:var(--green);stroke-width:1.8;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+.file-info{flex:1;}
+.file-info strong{display:block;font-size:.875rem;font-weight:600;color:var(--green-dark);}
+.file-info span{font-size:.75rem;color:var(--text-muted);}
+.btn-remove-file{background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;transition:color .2s;}
+.btn-remove-file:hover{color:var(--red);}
+.btn-remove-file svg{width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none;}
+
+/* Import button */
+.btn-import{
+  display:flex;align-items:center;gap:.5rem;
+  background:var(--green);color:var(--white);border:none;border-radius:8px;
+  padding:.65rem 1.5rem;font-family:'DM Sans',sans-serif;font-size:.875rem;font-weight:500;
+  cursor:pointer;transition:background .2s,transform .15s;margin-top:1rem;
+}
+.btn-import:hover{background:var(--green-dark);transform:translateY(-1px);}
+.btn-import:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.btn-import svg{width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+
+/* Success result */
+.import-result{
+  display:none;background:var(--green-bg);border:1px solid #b7e4c7;
+  border-radius:10px;padding:1.1rem 1.25rem;margin-top:.9rem;
+}
+.import-result.show{display:block;}
+.import-result h4{font-size:.9rem;font-weight:700;color:var(--green-dark);margin-bottom:.4rem;}
+.import-result p{font-size:.82rem;color:var(--green);}
+
+/* Income & Expenses tab */
+.step-card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:1.4rem 1.5rem;margin-bottom:1rem;}
+.step-num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--green);color:var(--white);font-size:.72rem;font-weight:700;margin-right:.65rem;flex-shrink:0;}
+.step-head{display:flex;align-items:center;font-size:.95rem;font-weight:700;margin-bottom:.9rem;}
+
+/* Template download row */
+.template-row{
+  display:flex;align-items:center;justify-content:space-between;
+  border:1px solid var(--border);border-radius:8px;padding:.85rem 1rem;
+}
+.template-info strong{display:block;font-size:.875rem;font-weight:600;margin-bottom:.2rem;}
+.template-info span{font-size:.75rem;color:var(--text-muted);}
+.btn-download{
+  display:flex;align-items:center;gap:.4rem;color:var(--green);
+  font-size:.82rem;font-weight:600;background:none;border:none;cursor:pointer;transition:color .2s;
+}
+.btn-download:hover{color:var(--green-dark);}
+.btn-download svg{width:15px;height:15px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+
+/* CSV table */
+.csv-table{width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:.75rem;}
+.csv-table th{
+  font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-muted);font-weight:500;text-align:left;padding:.6rem .9rem;
+  border-bottom:1px solid var(--border);
+}
+.csv-table td{padding:.7rem .9rem;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.5;}
+.csv-table tr:last-child td{border-bottom:none;}
+.csv-table .col-name{font-family:'DM Mono',monospace;font-size:.78rem;color:var(--text);}
+.csv-table .col-hint{color:var(--text-muted);}
+.csv-table .col-ex{font-family:'DM Mono',monospace;font-size:.78rem;color:var(--green);}
+.bank-note{font-size:.8rem;color:var(--text-muted);line-height:1.65;margin-top:.5rem;}
+.bank-note code{font-family:'DM Mono',monospace;font-size:.75rem;color:var(--text);background:var(--cream);padding:.1rem .35rem;border-radius:4px;}
+
+/* Toast */
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;z-index:999;background:var(--green-dark);color:var(--white);padding:.7rem 1.25rem;border-radius:8px;font-size:.85rem;font-weight:500;box-shadow:0 4px 16px rgba(0,0,0,.18);opacity:0;transform:translateY(10px);transition:opacity .3s,transform .3s;pointer-events:none;}
+.toast.show{opacity:1;transform:translateY(0);}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-logo" onclick="location.href='dashboard.html'">FinStud<span>.</span></div>
+    <nav class="nav-section">
+      <a class="nav-item" href="dashboard.html"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Overview</a>
+      <a class="nav-item" href="wealth.html"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Wealth</a>
+      <a class="nav-item" href="money.html"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>Money</a>
+      <a class="nav-item" href="essentials.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>Essentials</a>
+    </nav>
+    <div class="sidebar-spacer"></div>
+    <nav class="nav-section">
+      <div class="nav-label">Tools</div>
+      <a class="nav-item" href="settings.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</a>
+      <a class="nav-item active" href="import.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Import</a>
+      <a class="nav-item" href="#" onclick="Store.openFeedbackModal()"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Feedback</a>
+    </nav>
+    </aside>
+
+  <div class="main">
+    <div class="verify-banner" id="verifyBanner">
+      <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22 7 12 13 2 7"/></svg>
+      Please verify your email to unlock all features.
+      <span class="verify-link">Resend email</span>
+      <button class="verify-close" onclick="document.getElementById('verifyBanner').style.display='none'">×</button>
+    </div>
+
+    <div class="topbar">
+      <div class="topbar-actions">
+        <button class="icon-btn"><svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+        <div class="user-chip"><div class="avatar" id="userAvatar">S</div><span id="userName">User</span><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div style="margin-bottom:1.1rem;">
+        <h1 style="font-family:'Playfair Display',serif;font-size:1.75rem;font-weight:800;">Import</h1>
+        <p style="font-size:.875rem;color:var(--text-muted);margin-top:.25rem;">Bulk import assets, income &amp; expenses</p>
+      </div>
+
+      <!-- Main tabs -->
+      <div class="import-tabs">
+        <div class="itab active" id="tab-assets" onclick="switchMainTab('assets')">Assets</div>
+        <div class="itab" id="tab-income" onclick="switchMainTab('income')">Income &amp; Expenses</div>
+      </div>
+
+      <!-- ══════════════════════════════
+           ASSETS TAB
+      ══════════════════════════════ -->
+      <div id="section-assets">
+        <!-- Mode toggle -->
+        <div class="mode-row">
+          <button class="mode-btn active" id="modeBtn-broker" onclick="switchMode('broker')">Import from Broker</button>
+          <button class="mode-btn" id="modeBtn-standard" onclick="switchMode('standard')">Standard Import</button>
+          <button class="mode-btn active" id="modeBtn-append" onclick="switchImportMode('append')">Append</button>
+          <button class="mode-btn" id="modeBtn-update" onclick="switchImportMode('update')">Update by Name</button>
+        </div>
+        <div class="mode-info" id="modeInfoBanner"><strong>Append mode:</strong> Imported assets are added alongside existing ones. Nothing is overwritten or deleted.</div>
+
+        <!-- Broker selection card -->
+        <div class="import-card">
+          <h3>Select Broker</h3>
+          <div class="broker-row">
+            <button class="broker-btn selected" id="broker-zerodha" onclick="selectBroker('zerodha')">
+              <div class="broker-logo zerodha">Z</div>Zerodha
+            </button>
+            <button class="broker-btn" id="broker-groww" onclick="selectBroker('groww')">
+              <div class="broker-logo groww">G</div>Groww
+            </button>
+          </div>
+        </div>
+
+        <!-- Instructions — Zerodha -->
+        <div class="import-card" id="instructions-zerodha">
+          <h3>How to Export from Zerodha</h3>
+          <div class="instructions">
+            <div class="opt-title">Option 1: Kite Web (CSV)</div>
+            <ol>
+              <li>Login to <a href="https://kite.zerodha.com" target="_blank">kite.zerodha.com</a></li>
+              <li>Go to <strong>Holdings</strong></li>
+              <li>Click the <strong>download icon</strong> to download the CSV file</li>
+              <li>Upload the downloaded file below</li>
+            </ol>
+            <div class="opt-title">Option 2: Console (XLSX)</div>
+            <ol>
+              <li>Login to <a href="https://console.zerodha.com" target="_blank">console.zerodha.com</a></li>
+              <li>Go to <strong>Portfolio → Holdings</strong></li>
+              <li>Click the <strong>download icon</strong> (top right) to download the XLSX file</li>
+              <li>Upload the downloaded file below</li>
+            </ol>
+            <div class="note">Supports both equity and mutual fund holdings from either format</div>
+          </div>
+
+          <!-- Upload dropzone -->
+          <div class="dropzone" id="dropzone-zerodha"
+            onclick="document.getElementById('file-zerodha').click()"
+            ondragover="handleDragOver(event,'zerodha')"
+            ondragleave="handleDragLeave(event,'zerodha')"
+            ondrop="handleDrop(event,'zerodha')">
+            <svg viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+            <h4>Drag &amp; drop your file here</h4>
+            <p>or click to browse · .csv, .xlsx · Max 500 rows</p>
+            <input type="file" id="file-zerodha" accept=".csv,.xlsx" onchange="handleFileSelect(event,'zerodha')"/>
+          </div>
+          <div class="file-selected" id="selected-zerodha">
+            <div class="file-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+            <div class="file-info"><strong id="fname-zerodha">file.csv</strong><span id="fsize-zerodha">0 KB</span></div>
+            <button class="btn-remove-file" onclick="removeFile('zerodha')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+          <div class="error-banner" id="error-zerodha"></div>
+          <div class="preview-wrap" id="preview-zerodha">
+            <div class="preview-title">📋 Preview Parsed Data</div>
+            <div id="preview-table-zerodha"></div>
+            <div class="preview-stats" id="preview-stats-zerodha"></div>
+          </div>
+          <div class="import-result" id="result-zerodha">
+            <h4>✓ Import Successful</h4>
+            <p id="result-zerodha-text"></p>
+          </div>
+          <button class="btn-import" id="btn-import-zerodha" disabled onclick="processImport('zerodha')">
+            <svg viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+            Import Zerodha Holdings
+          </button>
+        </div>
+
+        <!-- Instructions — Groww -->
+        <div class="import-card" id="instructions-groww" style="display:none;">
+          <h3>How to Export from Groww</h3>
+          <div class="instructions">
+            <div class="opt-title">For Mutual Fund Holdings:</div>
+            <ol>
+              <li>Click on your <strong>profile photo</strong> (top right)</li>
+              <li>Click <strong>Reports</strong></li>
+              <li>Go to <strong>Holdings → Mutual Funds Holdings Statement</strong></li>
+              <li>Click <strong>Download</strong> on the right side</li>
+              <li>Upload the downloaded XLSX file below</li>
+            </ol>
+            <div class="opt-title">For Stock Holdings:</div>
+            <ol>
+              <li>Click on your <strong>profile photo</strong> (top right)</li>
+              <li>Click <strong>Reports</strong></li>
+              <li>Go to <strong>Holdings → Stock Holdings Statement</strong></li>
+              <li>Click <strong>Download</strong> on the right side</li>
+              <li>Upload the downloaded XLSX file below</li>
+            </ol>
+            <div class="note">Upload one file at a time — stocks and mutual funds are imported separately</div>
+          </div>
+
+          <div class="dropzone" id="dropzone-groww"
+            onclick="document.getElementById('file-groww').click()"
+            ondragover="handleDragOver(event,'groww')"
+            ondragleave="handleDragLeave(event,'groww')"
+            ondrop="handleDrop(event,'groww')">
+            <svg viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+            <h4>Drag &amp; drop your file here</h4>
+            <p>or click to browse · .csv, .xlsx · Max 500 rows</p>
+            <input type="file" id="file-groww" accept=".csv,.xlsx" onchange="handleFileSelect(event,'groww')"/>
+          </div>
+          <div class="file-selected" id="selected-groww">
+            <div class="file-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+            <div class="file-info"><strong id="fname-groww">file.xlsx</strong><span id="fsize-groww">0 KB</span></div>
+            <button class="btn-remove-file" onclick="removeFile('groww')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+          <div class="error-banner" id="error-groww"></div>
+          <div class="preview-wrap" id="preview-groww">
+            <div class="preview-title">📋 Preview Parsed Data</div>
+            <div id="preview-table-groww"></div>
+            <div class="preview-stats" id="preview-stats-groww"></div>
+          </div>
+          <div class="import-result" id="result-groww">
+            <h4>✓ Import Successful</h4>
+            <p id="result-groww-text"></p>
+          </div>
+          <button class="btn-import" id="btn-import-groww" disabled onclick="processImport('groww')">
+            <svg viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+            Import Groww Holdings
+          </button>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════
+           INCOME & EXPENSES TAB
+      ══════════════════════════════ -->
+      <div id="section-income" style="display:none;">
+
+        <!-- Step 1: Download template -->
+        <div class="step-card">
+          <div class="step-head"><span class="step-num">1</span>Download Template</div>
+          <div class="template-row">
+            <div class="template-info">
+              <strong>Transaction CSV Template</strong>
+              <span>Columns: date, description, amount, currency, type, category, notes</span>
+            </div>
+            <button class="btn-download" onclick="downloadTemplate()">
+              <svg viewBox="0 0 24 24"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.13"/></svg>
+              Download
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: Prepare file -->
+        <div class="step-card">
+          <div class="step-head"><span class="step-num">2</span>Prepare Your File</div>
+          <table class="csv-table">
+            <thead>
+              <tr><th>Column</th><th>What to put</th><th>Example</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="col-name">type</td>
+                <td class="col-hint">IN or OUT per row<br/><span style="font-size:.74rem;">Also accepts INCOME / EXPENSE / CR / DR</span></td>
+                <td class="col-ex">IN</td>
+              </tr>
+              <tr>
+                <td class="col-name">date</td>
+                <td class="col-hint">Date of transaction</td>
+                <td class="col-ex">2026-02-15 or 15/02/2026</td>
+              </tr>
+              <tr>
+                <td class="col-name">amount</td>
+                <td class="col-hint">Positive number<br/><span style="font-size:.74rem;">Negative values are auto-treated as Expense</span></td>
+                <td class="col-ex">3200</td>
+              </tr>
+              <tr>
+                <td class="col-name">category</td>
+                <td class="col-hint">Optional, leave blank to auto-detect<br/><span style="font-size:.74rem;">"Swiggy" becomes Food, "Salary" becomes Salary, etc.</span></td>
+                <td class="col-ex">FOOD</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="bank-note">Works with bank statement exports too. Columns like <code>narration</code>, <code>particulars</code>, and <code>dr/cr</code> are recognised automatically.</p>
+        </div>
+
+        <!-- Step 3: Upload -->
+        <div class="step-card">
+          <div class="step-head"><span class="step-num">3</span>Upload File</div>
+          <div class="dropzone" id="dropzone-txn"
+            onclick="document.getElementById('file-txn').click()"
+            ondragover="handleDragOver(event,'txn')"
+            ondragleave="handleDragLeave(event,'txn')"
+            ondrop="handleDrop(event,'txn')">
+            <svg viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+            <h4>Drop your CSV here</h4>
+            <p>or click to browse</p>
+            <input type="file" id="file-txn" accept=".csv" onchange="handleFileSelect(event,'txn')"/>
+          </div>
+          <div class="file-selected" id="selected-txn">
+            <div class="file-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+            <div class="file-info"><strong id="fname-txn">transactions.csv</strong><span id="fsize-txn">0 KB</span></div>
+            <button class="btn-remove-file" onclick="removeFile('txn')"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+          <div class="import-result" id="result-txn">
+            <h4>✓ Import Successful</h4>
+            <p id="result-txn-text"></p>
+          </div>
+          <button class="btn-import" id="btn-import-txn" disabled onclick="processImport('txn')">
+            <svg viewBox="0 0 24 24"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+            Import Transactions
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═════════════════════════════════════════════════
+   FinStud — Import Page Logic (with real parsing)
+   ═════════════════════════════════════════════════ */
+
+// ── User init ──
+const cachedUser = Store.getCachedUser();
+document.getElementById('userAvatar').textContent = Store.initials(cachedUser.name);
+document.getElementById('userName').textContent   = cachedUser.name || 'User';
+
+let currentBroker = 'zerodha';
+let importMode    = 'append';   // 'append' | 'update'
+const selectedFiles = {};
+const parsedData    = {};       // { zerodha: [...], groww: [...] }
+
+// ── Mode toggles ──
+function switchMode(mode) {
+  document.getElementById('modeBtn-broker').classList.toggle('active', mode==='broker');
+  document.getElementById('modeBtn-standard').classList.toggle('active', mode==='standard');
+  // For now both point to broker import; "Standard Import" is a placeholder
+}
+function switchImportMode(mode) {
+  importMode = mode;
+  document.getElementById('modeBtn-append').classList.toggle('active', mode==='append');
+  document.getElementById('modeBtn-update').classList.toggle('active', mode==='update');
+  const banner = document.getElementById('modeInfoBanner');
+  if (mode === 'append') {
+    banner.innerHTML = '<strong>Append mode:</strong> Imported assets are added alongside existing ones. Nothing is overwritten or deleted.';
+  } else {
+    banner.innerHTML = '<strong>Update by Name:</strong> Existing assets with the same name will be updated with new values. New assets will be added.';
+  }
+}
+
+// ── Main tab switch ──
+function switchMainTab(tab) {
+  document.getElementById('section-assets').style.display = tab==='assets'?'':'none';
+  document.getElementById('section-income').style.display = tab==='income'?'':'none';
+  document.getElementById('tab-assets').classList.toggle('active', tab==='assets');
+  document.getElementById('tab-income').classList.toggle('active', tab==='income');
+}
+
+// ── Broker switch ──
+function selectBroker(broker) {
+  currentBroker = broker;
+  document.querySelectorAll('.broker-btn').forEach(b=>b.classList.remove('selected'));
+  document.getElementById('broker-'+broker).classList.add('selected');
+  document.getElementById('instructions-zerodha').style.display = broker==='zerodha'?'':'none';
+  document.getElementById('instructions-groww').style.display   = broker==='groww'?'':'none';
+}
+
+// ── Helpers ──
+function cleanNum(v) {
+  if (v == null) return 0;
+  return parseFloat(String(v).replace(/,/g, '').replace(/[^\d.\-]/g, '')) || 0;
+}
+function findCol(row, ...candidates) {
+  for (const c of candidates) {
+    const key = Object.keys(row).find(k => k.trim().toLowerCase() === c.toLowerCase());
+    if (key && row[key] != null && String(row[key]).trim() !== '') return row[key];
+  }
+  return null;
+}
+function showError(id, msg) {
+  const el = document.getElementById('error-'+id);
+  el.innerHTML = '<strong>⚠ Error:</strong> '+msg;
+  el.classList.add('show');
+}
+function hideError(id) {
+  const el = document.getElementById('error-'+id);
+  if (el) { el.innerHTML=''; el.classList.remove('show'); }
+}
+
+// ── Drag & drop ──
+function handleDragOver(e, id) {
+  e.preventDefault();
+  document.getElementById('dropzone-'+id).classList.add('dragover');
+}
+function handleDragLeave(e, id) {
+  document.getElementById('dropzone-'+id).classList.remove('dragover');
+}
+function handleDrop(e, id) {
+  e.preventDefault();
+  document.getElementById('dropzone-'+id).classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) validateAndSetFile(id, file);
+}
+function handleFileSelect(e, id) {
+  const file = e.target.files[0];
+  if (file) validateAndSetFile(id, file);
+}
+
+// ── File validation + auto-parse ──
+function validateAndSetFile(id, file) {
+  hideError(id);
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (id === 'txn' && ext !== 'csv') {
+    showError(id, 'Only .csv files are accepted for transactions.');
+    return;
+  }
+  if (id !== 'txn' && ext !== 'csv' && ext !== 'xlsx') {
+    showError(id, 'Invalid file type. Please upload a .csv or .xlsx file.');
+    return;
+  }
+  if (file.size === 0) {
+    showError(id, 'The file appears to be empty.');
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    showError(id, 'File too large. Maximum 5 MB allowed.');
+    return;
+  }
+  setFile(id, file);
+  if (id !== 'txn') parseFileForPreview(id, file);
+}
+
+function setFile(id, file) {
+  selectedFiles[id] = file;
+  document.getElementById('fname-'+id).textContent = file.name;
+  document.getElementById('fsize-'+id).textContent = (file.size/1024).toFixed(1)+' KB';
+  document.getElementById('selected-'+id).classList.add('show');
+  document.getElementById('dropzone-'+id).style.display = 'none';
+  document.getElementById('result-'+id).classList.remove('show');
+}
+function removeFile(id) {
+  selectedFiles[id] = null;
+  parsedData[id] = null;
+  document.getElementById('selected-'+id).classList.remove('show');
+  document.getElementById('dropzone-'+id).style.display = '';
+  document.getElementById('btn-import-'+id).disabled = true;
+  document.getElementById('result-'+id).classList.remove('show');
+  document.getElementById('file-'+id).value = '';
+  hideError(id);
+  const pw = document.getElementById('preview-'+id);
+  if (pw) pw.classList.remove('show');
+}
+
+// ── Parse file for preview (CSV via PapaParse, XLSX via SheetJS) ──
+function parseFileForPreview(brokerId, file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  const btn = document.getElementById('btn-import-'+brokerId);
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Parsing…';
+
+  if (ext === 'csv') {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: function(results) {
+        console.log('[FinStud] PapaParse results:', results);
+        if (results.errors.length > 0) {
+          console.warn('[FinStud] Parse warnings:', results.errors);
+        }
+        handleParsedRows(brokerId, results.data);
+      },
+      error: function(err) {
+        console.error('[FinStud] PapaParse error:', err);
+        showError(brokerId, 'Failed to parse CSV: ' + err.message);
+        resetBtn(brokerId);
+      }
+    });
+  } else if (ext === 'xlsx') {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        console.log('[FinStud] XLSX parsed rows:', rows);
+        handleParsedRows(brokerId, rows);
+      } catch (err) {
+        console.error('[FinStud] XLSX parse error:', err);
+        showError(brokerId, 'Failed to parse XLSX: ' + err.message);
+        resetBtn(brokerId);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+// ── Map rows to assets ──
+function handleParsedRows(brokerId, rows) {
+  if (!rows || rows.length === 0) {
+    showError(brokerId, 'No data rows found in the file.');
+    resetBtn(brokerId);
+    return;
+  }
+  // Log headers for debug
+  console.log('[FinStud] Detected columns:', Object.keys(rows[0]));
+
+  const mapped = [];
+  rows.forEach((row, i) => {
+    // Map name — Zerodha uses "Instrument" or "Tradingsymbol", Groww uses "Symbol" or "Scheme Name"
+    const name = findCol(row,
+      'instrument','tradingsymbol','trading symbol','symbol',
+      'scheme name','fund name','stock name','company','name','scrip');
+    // Map quantity — Zerodha uses "Qty." (with period)
+    const qty = cleanNum(findCol(row,
+      'quantity','qty.','qty','units','no. of units','holding qty'));
+    // Map average price — Zerodha uses "Avg. cost"
+    const avgPrice = cleanNum(findCol(row,
+      'avg. cost','average price','avg price','avg cost','buy price',
+      'purchase price','buy avg','average cost'));
+    // Map invested value
+    const invested = cleanNum(findCol(row,
+      'invested','invested value','investment','total invested','buy value'));
+    // Map current value — Zerodha uses "Cur. val"
+    const curValue = cleanNum(findCol(row,
+      'cur. val','current value','cur value','market value','present value',
+      'value','total value','amount'));
+    // Map LTP
+    const ltp = cleanNum(findCol(row,
+      'ltp','last price','last traded price','current price','nav','current nav'));
+    // Map exchange
+    const exchange = findCol(row, 'exchange','segment') || '';
+
+    // Calculate value: prefer current value, fallback to qty*ltp, then qty*avgPrice
+    let value = curValue;
+    if (!value && qty && ltp) value = qty * ltp;
+    if (!value && qty && avgPrice) value = qty * avgPrice;
+
+    // Determine asset type — detect Mutual Funds and ETFs
+    let assetType = 'Stocks & Equity';
+    const nameLower = (name || '').toLowerCase();
+    if (nameLower.includes('fund') || nameLower.includes('nifty') || nameLower.includes('sensex') ||
+        nameLower.includes('index') || nameLower.includes('etf') || nameLower.includes('scheme') ||
+        nameLower.includes('bees') || nameLower.includes('gold') || nameLower.includes('liquid') ||
+        nameLower.includes('flexi') || nameLower.includes('bluechip') || nameLower.includes('midcap') ||
+        nameLower.includes('smallcap') || nameLower.includes('largecap') || nameLower.includes('multi') ||
+        nameLower.includes('balanced') || nameLower.includes('debt') || nameLower.includes('gilt') ||
+        nameLower.includes('overnight') || nameLower.includes('arbitrage') || nameLower.includes('nav')) {
+      assetType = 'Mutual Funds';
+    }
+    if (exchange.toUpperCase() === 'MF' || exchange.toUpperCase() === 'MUTUAL FUND') {
+      assetType = 'Mutual Funds';
+    }
+
+    const valid = name && name.trim() && value > 0;
+    mapped.push({
+      name: name ? name.trim() : '(unknown)',
+      quantity: qty,
+      avgPrice: avgPrice,
+      value: value,
+      asset_type: assetType,
+      valid: !!valid,
+      rowIndex: i + 1
+    });
+  });
+
+  const validCount = mapped.filter(m => m.valid).length;
+  const invalidCount = mapped.filter(m => !m.valid).length;
+
+  if (validCount === 0) {
+    showError(brokerId, 'No valid rows found. Make sure the file has columns like Instrument, Quantity, Average Price, Current Value.');
+    resetBtn(brokerId);
+    return;
+  }
+
+  parsedData[brokerId] = mapped;
+  renderPreview(brokerId, mapped, validCount, invalidCount);
+
+  const btn = document.getElementById('btn-import-'+brokerId);
+  const label = brokerId==='zerodha'?'Import Zerodha Holdings':'Import Groww Holdings';
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg> ${label}`;
+  btn.disabled = false;
+}
+
+function resetBtn(brokerId) {
+  const btn = document.getElementById('btn-import-'+brokerId);
+  const label = brokerId==='zerodha'?'Import Zerodha Holdings':'Import Groww Holdings';
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg> ${label}`;
+  btn.disabled = true;
+}
+
+// ── Render preview table ──
+function renderPreview(brokerId, mapped, validCount, invalidCount) {
+  const total = mapped.filter(m=>m.valid).reduce((s,m)=>s+m.value, 0);
+  let html = '<table class="preview-table"><thead><tr><th>#</th><th>Name</th><th>Qty</th><th>Avg Price</th><th>Value</th><th>Type</th></tr></thead><tbody>';
+  mapped.slice(0, 50).forEach((m, i) => {
+    const cls = m.valid ? '' : ' class="invalid-row"';
+    html += `<tr${cls}><td>${m.rowIndex}</td><td>${m.name}</td><td>${m.quantity||'—'}</td><td>₹${m.avgPrice?m.avgPrice.toLocaleString('en-IN'):'—'}</td><td>₹${m.value?m.value.toLocaleString('en-IN'):'0'}</td><td>${m.asset_type}</td></tr>`;
+  });
+  if (mapped.length > 50) html += `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);font-style:italic;">… and ${mapped.length-50} more rows</td></tr>`;
+  html += '</tbody></table>';
+  document.getElementById('preview-table-'+brokerId).innerHTML = html;
+  let statsHtml = `<strong>${validCount}</strong> valid rows · Total value: <strong>₹${total.toLocaleString('en-IN')}</strong>`;
+  if (invalidCount > 0) statsHtml += ` · <span style="color:var(--red);">${invalidCount} invalid rows (will be skipped)</span>`;
+  document.getElementById('preview-stats-'+brokerId).innerHTML = statsHtml;
+  document.getElementById('preview-'+brokerId).classList.add('show');
+}
+
+// ── Process import (real parsing) ──
+async function processImport(id) {
+  const file = selectedFiles[id];
+  if (!file) return;
+  const btn = document.getElementById('btn-import-'+id);
+  btn.innerHTML = '<span class="spinner"></span> Importing…';
+  btn.disabled = true;
+  hideError(id);
+
+  try {
+    if (id === 'txn') {
+      await importTransactions(file, btn);
+    } else {
+      await importBrokerAssets(id, btn);
+    }
+  } catch (err) {
+    console.error('[FinStud] Import error:', err);
+    showError(id, 'Import failed: ' + err.message);
+    resetBtn(id);
+  }
+}
+
+// ── Import broker assets using pre-parsed data ──
+async function importBrokerAssets(brokerId, btn) {
+  const items = parsedData[brokerId];
+  if (!items || items.length === 0) {
+    showError(brokerId, 'No parsed data. Please upload a file first.');
+    resetBtn(brokerId);
+    return;
+  }
+  const validItems = items.filter(m => m.valid);
+  let successCount = 0;
+  let existingAssets = [];
+
+  if (importMode === 'update') {
+    try { existingAssets = await Store.getAssets(); } catch(e) { existingAssets = []; }
+  }
+
+  for (const item of validItems) {
+    try {
+      if (importMode === 'update') {
+        const existing = existingAssets.find(a => a.name.toLowerCase() === item.name.toLowerCase());
+        if (existing) {
+          await Store.updateAsset(existing.id, { value: item.value, asset_type: item.asset_type });
+        } else {
+          await Store.addAsset({ name: item.name, asset_type: item.asset_type, value: item.value });
+        }
+      } else {
+        await Store.addAsset({ name: item.name, asset_type: item.asset_type, value: item.value });
+      }
+      successCount++;
+    } catch (err) {
+      console.warn('[FinStud] Failed to add/update asset:', item.name, err.message);
+    }
+  }
+
+  const totalVal = validItems.reduce((s,m)=>s+m.value,0);
+  const msg = `${successCount} holdings imported from ${brokerId.charAt(0).toUpperCase()+brokerId.slice(1)}. Total value: ₹${totalVal.toLocaleString('en-IN')}`;
+  document.getElementById('result-'+brokerId+'-text').textContent = msg;
+  document.getElementById('result-'+brokerId).classList.add('show');
+  toast('✓ '+msg);
+  const label = brokerId==='zerodha'?'Import Zerodha Holdings':'Import Groww Holdings';
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="20 6 9 17 4 12"/></svg> ${label}`;
+  btn.disabled = false;
+}
+
+// ── Import transactions (Income & Expenses tab) ──
+async function importTransactions(file, btn) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async function(results) {
+        const lines = results.data;
+        let incCount=0, expCount=0, errCount=0;
+        for (const row of lines) {
+          try {
+            const desc = findCol(row,'description','narration','particulars','name','remarks') || '';
+            const rawAmt = findCol(row,'amount','debit','credit','dr','cr','value') || '0';
+            const amt = cleanNum(rawAmt);
+            const rawType = findCol(row,'type','dr/cr','transaction type') || '';
+            const category = findCol(row,'category','cat') || 'Other';
+            const date = findCol(row,'date','txn date','transaction date','value date') || new Date().toISOString().split('T')[0];
+            if (!desc.trim() || amt===0) { errCount++; continue; }
+            const typeUp = rawType.toUpperCase().trim();
+            const isIncome = ['IN','INCOME','CR','CREDIT'].includes(typeUp) || (amt > 0 && !['OUT','EXPENSE','DR','DEBIT'].includes(typeUp));
+            const entry = { name: desc.trim(), amount: Math.abs(amt), category: category, date: date };
+            if (isIncome) { await Store.addIncome(entry); incCount++; }
+            else          { await Store.addExpense(entry); expCount++; }
+          } catch(e) { errCount++; }
+        }
+        const msg = `${incCount} income + ${expCount} expense entries added.` + (errCount?` ${errCount} rows skipped.`:'');
+        document.getElementById('result-txn-text').textContent = msg;
+        document.getElementById('result-txn').classList.add('show');
+        toast('✓ '+msg);
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><polyline points="20 6 9 17 4 12"/></svg> Import Transactions';
+        btn.disabled = false;
+        resolve();
+      },
+      error: function(err) { reject(err); }
+    });
+  });
+}
+
+// ── Download CSV template ──
+function downloadTemplate() {
+  const csv = `date,description,amount,currency,type,category,notes
+2026-03-01,Monthly Salary,85000,INR,IN,Salary,
+2026-03-05,Swiggy Food Order,-450,INR,OUT,Food & Dining,
+2026-03-08,Netflix Subscription,-649,INR,OUT,Subscriptions,
+2026-03-10,Freelance Project,15000,INR,IN,Freelance,`;
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download='finstud-transaction-template.csv'; a.click();
+  URL.revokeObjectURL(url);
+  toast('✓ Template downloaded');
+}
+
+// ── Toast ──
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>
